@@ -1,0 +1,175 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NIFTY 50 Intraday EMACross Decision Portal</title>
+<style>
+:root{--bg:#06101c;--panel:#0d1b2b;--panel2:#12243a;--border:#29435f;--text:#f3f7fb;--muted:#a8b8c9;--red:#6b2029;--orange:#8a5120;--yellow:#746a13;--green:#07804a;--green2:#00a65a}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Arial,Helvetica,sans-serif}
+header{padding:18px 20px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:20px;align-items:flex-start}
+h1{font-size:21px;margin:0 0 5px}.sub{font-size:12px;color:var(--muted)}
+.status{text-align:right;font-size:13px}.status strong{display:block}.ok{color:#00d778}.bad{color:#ff6978}.warn{color:#ffbd66}
+button{background:#14283f;border:1px solid #385675;color:white;border-radius:8px;padding:9px 14px;cursor:pointer}
+button:hover{background:#1a3450}
+.legend{display:flex;gap:8px;flex-wrap:wrap;padding:12px 12px 4px}
+.pill{padding:5px 9px;border-radius:999px;font-size:10px;font-weight:bold}.reject{background:var(--red)}.weak{background:var(--orange)}.watch{background:var(--yellow)}.trade{background:var(--green)}.high{background:var(--green2)}
+.grid{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:7px;padding:8px 8px 20px}
+.tile{min-height:107px;border:1px solid #8a3843;border-radius:9px;padding:10px;cursor:pointer;transition:.12s;overflow:hidden}
+.tile:hover{transform:translateY(-1px);filter:brightness(1.12)}.tile .sym{font-size:12px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .score{font-size:27px;font-weight:900;margin:9px 0 4px}.tile .dir{font-size:11px;font-weight:800}.tile .cls{font-size:10px;font-weight:800;margin-top:4px}.tile .cross{font-size:9px;font-weight:700;margin-top:5px;opacity:.95;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;padding:15px;z-index:5}
+.modal.show{display:flex}.box{background:#081625;border:1px solid #355472;border-radius:13px;width:min(950px,96vw);max-height:92vh;overflow:auto;padding:20px}
+.modalhead{display:flex;justify-content:space-between;gap:10px}.title{font-size:24px;font-weight:900}.badge{font-size:11px;color:var(--muted);margin-top:6px}
+.alert{padding:12px;border:1px solid #41617e;background:#11253a;border-radius:8px;margin:15px 0;font-weight:700}.alert.warn{border-color:#765a2a;background:#2b2112}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.card{background:var(--panel2);padding:12px;border-radius:8px}.label{font-size:10px;color:var(--muted)}.value{font-size:18px;font-weight:800;margin-top:5px}
+table{width:100%;border-collapse:collapse;margin-top:16px;font-size:12px}th,td{text-align:left;padding:8px;border-bottom:1px solid #263c52}th{color:#c6d4e2}
+.setup{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:12px}
+@media(max-width:900px){.grid{grid-template-columns:repeat(5,minmax(0,1fr))}.cards{grid-template-columns:repeat(2,1fr)}.setup{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:520px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}.tile{min-height:95px;padding:8px}.tile .score{font-size:22px}header{flex-direction:column}.status{text-align:left}}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>NIFTY 50 Intraday EMACross Decision Portal <span style="font-size:11px;color:#91a6bc">v3</span></h1>
+    <div class="sub">5m • EMA 7/21 • Bollinger 20/2 • MACD 12/26/9 • Vortex 14 • Volume • read-only / no order execution</div>
+  </div>
+  <div class="status">
+    <strong id="regime">NIFTY REGIME: Loading...</strong>
+    <strong id="dataStatus">DATA: —</strong>
+    <div id="timing" class="sub">—</div>
+    <div id="crossSummary" class="sub" style="margin-top:3px;font-weight:700">Latest EMA cross: —</div>
+    <div id="refreshCountdown" class="sub" style="margin-top:2px">Next refresh: —</div>
+    <button onclick="manualRefresh()">Refresh Now</button>
+  </div>
+</header>
+
+<div class="legend">
+  <span class="pill reject">REJECT &lt;60</span><span class="pill weak">WEAK 60–69</span>
+  <span class="pill watch">WATCH 70–79</span><span class="pill trade">TRADE 80–89</span>
+  <span class="pill high">HIGH QUALITY 90–100</span>
+</div>
+<div id="grid" class="grid"></div>
+
+<div id="modal" class="modal" onclick="if(event.target===this)closeModal()">
+ <div class="box">
+  <div class="modalhead"><div><div id="mTitle" class="title"></div><div id="mBadge" class="badge"></div></div><button onclick="closeModal()">Close</button></div>
+  <div id="mAlert"></div>
+  <div id="mSetup"></div>
+  <h3>EMA 7/21 crossover</h3><div id="mCross" class="alert"></div>
+  <h3>Market metrics</h3><div id="mCards" class="cards"></div>
+  <h3>Strategy factor breakdown</h3><table><thead><tr><th>Factor</th><th>Reading</th><th>Points</th></tr></thead><tbody id="mFactors"></tbody></table>
+ </div>
+</div>
+
+<script>
+let state=null;
+function fmt(v){return v===null||v===undefined?"—":Number(v).toLocaleString("en-IN",{maximumFractionDigits:2})}
+function cls(score){if(score>=90)return"high";if(score>=80)return"trade";if(score>=70)return"watch";if(score>=60)return"weak";return"reject"}
+function bg(c){return ({high:"#00a65a",trade:"#07804a",watch:"#746a13",weak:"#8a5120",reject:"#6b2029"})[c]}
+function fmtTime(v){if(!v)return"—";return v}
+function crossLabel(c){if(!c||!c.occurred)return"EMA cross: none"; const arrow=c.direction==="BULLISH"?"↑":"↓"; const when=c.is_today?fmtTime(c.time):fmtTime(c.time).replace(/^(\d{2})-(\w{3})-\d{4} /,"$1-$2 "); return `EMA ${arrow} ${when}`;}
+function render(){
+ const s=state; if(!s)return;
+ const rg=s.market_regime;
+ document.getElementById("regime").textContent=`NIFTY REGIME: ${rg.name} • ${rg.direction}`;
+ document.getElementById("regime").className=rg.direction==="NONE"?"warn":"";
+ const dataAge=s.fetched_at?Math.max(0,Math.round((Date.now()-new Date(s.fetched_at).getTime())/60000)):null;
+ const err=s.last_error;
+ document.getElementById("dataStatus").textContent=err?`DATA: ${s.fetch_status||"ERROR"} • ${String(err).slice(0,90)}`:`DATA: ${s.fetch_status||"OK"} • Yahoo Finance via yfinance`;
+ document.getElementById("dataStatus").className=err?"bad":"ok";
+ document.getElementById("timing").textContent=`Latest completed candle: ${s.nifty_candle||"—"} • data age ${dataAge===null?"—":dataAge+" min"} • ${s.market_open?"MARKET OPEN":"MARKET CLOSED"}`;
+ const lc=s.latest_ema_cross;
+ document.getElementById("crossSummary").textContent=lc?`${lc.is_today?"Latest EMA 7/21 cross today":"Latest available EMA 7/21 cross"}: ${lc.symbol} • ${lc.direction} • ${lc.time}`:"Latest EMA 7/21 cross: none in available history";
+ const grid=document.getElementById("grid"); grid.innerHTML="";
+ s.stocks.forEach(x=>{
+   const c=cls(x.score||0);
+   const tile=document.createElement("div"); tile.className="tile"; tile.style.background=bg(c);
+   tile.innerHTML=`<div class="sym">${x.symbol}</div><div class="score">${x.score||0}</div><div class="dir">${x.direction||"NONE"}</div><div class="cls">${x.classification||"REJECT"}</div><div class="cross">${crossLabel(x.ema_cross)}</div>`;
+   tile.onclick=()=>openStock(x.symbol);grid.appendChild(tile);
+ });
+}
+function openStock(sym){
+ const x=state.stocks.find(a=>a.symbol===sym); if(!x)return;
+ document.getElementById("mTitle").textContent=sym;
+ document.getElementById("mBadge").textContent=`${x.direction||"NONE"} • Score ${x.score||0}/100 • ${x.classification||"REJECT"} • ${x.entry_status||""}`;
+ let alert="";
+ if(!x.actionable) alert=`<div class="alert ${x.entry_status==="MARKET CLOSED"?"warn":""}">${x.entry_status==="MARKET CLOSED"?"MARKET CLOSED — no live intraday entry instructions.":x.score>=70?"No immediate trade. Wait for the missing confirmation factors.":"No actionable trade setup. Reject/Weak stocks are not entry instructions."}</div>`;
+ else alert=`<div class="alert">ACTIONABLE ${x.direction} SETUP — use the entry zone only after the stated confirmations remain valid.</div>`;
+ document.getElementById("mAlert").innerHTML=alert;
+ document.getElementById("mSetup").innerHTML=x.actionable?`
+ <div class="setup">
+  <div class="card"><div class="label">ENTRY</div><div class="value">₹${fmt(x.entry)}</div></div>
+  <div class="card"><div class="label">STOP LOSS</div><div class="value">₹${fmt(x.stop_loss)}</div></div>
+  <div class="card"><div class="label">TARGET 1</div><div class="value">₹${fmt(x.target1)}</div></div>
+  <div class="card"><div class="label">TARGET 2</div><div class="value">₹${fmt(x.target2)}</div></div>
+  <div class="card"><div class="label">MAX QTY @ 1% RISK</div><div class="value">${x.quantity}</div></div>
+ </div>`:"";
+ const m=x.metrics||{};
+ const cards=[
+ ["Price",fmt(x.price)],["Latest EMA Cross",x.ema_cross&&x.ema_cross.occurred?fmtTime(x.ema_cross.time):"—"],["EMA 7",fmt(m.ema7)],["EMA 21",fmt(m.ema21)],["ATR 14",fmt(m.atr14)],
+ ["BB Upper",fmt(m.bb_upper)],["BB Middle",fmt(m.bb_mid)],["BB Lower",fmt(m.bb_lower)],["RVOL",m.rvol===null?"—":fmt(m.rvol)+"x"],
+ ["MACD",fmt(m.macd)],["Signal",fmt(m.macd_signal)],["Histogram",fmt(m.macd_hist)],["VI+",fmt(m.vi_plus)],["VI-",fmt(m.vi_minus)]
+ ];
+ document.getElementById("mCards").innerHTML=cards.map(a=>`<div class="card"><div class="label">${a[0]}</div><div class="value">${a[1]}</div></div>`).join("");
+ const factors=(x.all_factors?.long||[]).concat(x.all_factors?.short||[]);
+ document.getElementById("mFactors").innerHTML=factors.length?factors.map(f=>`<tr><td>${f[0]}</td><td>${f[1]}</td><td>${f[2]}</td></tr>`).join(""):`<tr><td colspan="3">No confirmed scoring factors.</td></tr>`;
+ document.getElementById("modal").classList.add("show");
+}
+function closeModal(){document.getElementById("modal").classList.remove("show")}
+let refreshBusy=false;
+async function load(){
+ try{
+   const r=await fetch("/api/market",{cache:"no-store"});
+   const text=await r.text();
+   if(!r.ok) throw new Error(`HTTP ${r.status}: ${text.slice(0,180)}`);
+   state=JSON.parse(text);render();
+ }catch(e){
+   document.getElementById("dataStatus").textContent="DATA: ERROR";
+   console.error("Market load failed",e);
+ }
+}
+async function refreshData(showAlert=false){
+ if(refreshBusy)return;
+ refreshBusy=true;
+ document.getElementById("dataStatus").textContent="DATA: REFRESHING...";
+ try{
+   const r=await fetch("/api/refresh",{method:"POST",cache:"no-store"});
+   const text=await r.text();
+   if(!r.ok) throw new Error(`HTTP ${r.status}: ${text.slice(0,180)}`);
+   state=JSON.parse(text);render();
+   if(showAlert && state.fetch_status==="ERROR") alert("Yahoo refresh failed: "+(state.last_error||"unknown error"));
+ }catch(e){
+   document.getElementById("dataStatus").textContent="DATA: ERROR";
+   console.error("Refresh failed",e);
+   if(showAlert) alert("Refresh failed: "+e.message);
+ }finally{refreshBusy=false;}
+}
+async function manualRefresh(){await refreshData(true)}
+let refreshTimer=null;
+let countdownTimer=null;
+function scheduleRefresh(){
+  if(refreshTimer)clearTimeout(refreshTimer);
+  const now=new Date();
+  const next=new Date(now);
+  next.setSeconds(7,0);
+  const mins=now.getMinutes();
+  const nextMinute=Math.ceil((mins+1)/5)*5;
+  next.setMinutes(nextMinute);
+  if(next<=now) next.setMinutes(next.getMinutes()+5);
+  const delay=Math.max(1000,next-now);
+  refreshTimer=setTimeout(async()=>{await refreshData(false);scheduleRefresh();},delay);
+  if(countdownTimer)clearInterval(countdownTimer);
+  countdownTimer=setInterval(()=>{
+    const left=Math.max(0,next-new Date());
+    const sec=Math.ceil(left/1000);
+    document.getElementById("refreshCountdown").textContent=`Next Yahoo refresh in ${Math.floor(sec/60)}m ${String(sec%60).padStart(2,"0")}s`;
+    if(left<=0)clearInterval(countdownTimer);
+  },1000);
+}
+load().then(scheduleRefresh);
+</script>
+</body>
+</html>
